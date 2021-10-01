@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -112,17 +113,21 @@ class File:
     def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO]):
         self.path = path
         if isinstance(data, (StringIO, BytesIO)):
-            # Read in blocks; farm out to file if too large
+            # TO DO: Read in blocks; farm out to file if too large
             data = self._read_from_filelike(data)
             if len(data) > File.MAX_MEM_LENGTH:
-                tf = tempfile.TemporaryFile()
-                tf.write(data)
+                tf = tempfile.NamedTemporaryFile(delete=False)
+                with tf:
+                    if isinstance(data, str):
+                        data = data.encode()
+                    tf.write(data)
                 data = tf
         else:
             # Farm out to file if too large
             if len(data) > File.MAX_MEM_LENGTH:
-                tf = tempfile.TemporaryFile()
-                tf.write(data)
+                tf = tempfile.NamedTemporaryFile(delete=False)
+                with tf:
+                    tf.write(data)
                 data = tf
         self.data = data
 
@@ -130,20 +135,8 @@ class File:
         return data.read()
 
     def open(self, encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[StringIO, BytesIO]:
-        # NOTE:
-        # * TemporaryFile classes are convenient, but a single "with" statement will blow them away.
-        #   We do *not* want the files to delete until we're done with them.
-        #   During our __del__, we should release them.
-        # * SpooledTemporaryFile would let us basically do exactly what we want, but
-        #   wouldn't allow us to keep the file in the filesystem until our choosing
-        #   unless we proxy the data through another object.
-        # * io.BufferedReader appears capable of wrapping TemporaryFile...  but sometimes files disappear.  Not sure why.
-        #   * The moment the reader closes, the underlying file is closed.  Ugh.
-        # * Probably: We want to act like SpooledTemporaryFile, but used NamedTemporaryFiles without deletion.
-        # Conditional:
-        if isinstance(self.data, io.BufferedRandom):  # tempfile case
-            self.data.seek(0)
-            return self.data
+        if hasattr(self.data, 'name'):  # tempfile case
+            return open(self.data.name, encoding=encoding)
         if encoding is None:
             # binary mode; coerce string to utf-8 bytes if needed
             return BytesIO(self.data if isinstance(self.data, bytes) else self.data.encode())
@@ -151,3 +144,8 @@ class File:
             # string mode; coerce bytes to string if needed.  encoding ignored if already a string.
             return StringIO(self.data if isinstance(self.data, str) else self.data.decode(encoding))
         # * If data is a tempfile: handle differently
+
+    def __del__(self, unlink=os.unlink):
+        if hasattr(self.data, 'name'):
+            # This is a file-like object returned from tempfile.NamedTemporaryFile; remove the tempfile.
+            unlink(self.data.name)

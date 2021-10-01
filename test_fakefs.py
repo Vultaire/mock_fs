@@ -80,7 +80,7 @@ class Test(unittest.TestCase):
         self.fs.create_file('/test', data)
 
         file = self.fs['/test']
-        self.assertIsInstance(file.data, io.BufferedRandom)
+        self.assertTrue(hasattr(file.data, 'name'))  # not present on str/bytes
         with self.fs.open('/test') as infile:
             self.assertEqual(infile.read(), data)
 
@@ -88,7 +88,7 @@ class Test(unittest.TestCase):
         self.fs.create_file('/test2', StringIO(data))
 
         file = self.fs['/test2']
-        self.assertIsInstance(file.data, io.BufferedRandom)
+        self.assertTrue(hasattr(file.data, 'name'))  # not present on str/bytes
         with self.fs.open('/test2') as infile:
             self.assertEqual(infile.read(), data)
 
