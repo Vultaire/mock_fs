@@ -122,12 +122,13 @@ class Test(unittest.TestCase):
         with self.fs.open('/test2', encoding='utf-8') as infile:  # Explicit utf-8 read
             self.assertEqual(infile.read(), data)
 
-    def test_delete_file(self):
-        # self.fs.create_file('/test', "foo")
-        # del self.fs[Path('/test')]
-        # with self.assertRaises(FileNotFoundError):
-        #     self.fs['/test']
+    def test_open_directory_fails(self):
+        self.fs.create_dir('/dir1')
+        with self.assertRaises(IsADirectoryError) as cm:
+            self.fs.open('/dir1')
+        self.assertEqual(cm.exception.args[0], '/dir1')
 
+    def test_delete_file(self):
         self.fs.create_file(Path('/test'), "foo")
         del self.fs[Path('/test')]
         with self.assertRaises(FileNotFoundError) as cm:

@@ -11,22 +11,6 @@ class FakeFilesystem:
     def __init__(self):
         self.root = Directory(Path('/'))
 
-    def list_dir(self, path) -> typing.List[str]:
-        current_dir = self.root
-        tokens = Path(path).parts[1:]
-        for token in tokens:
-            try:
-                current_dir = current_dir[token]
-            except KeyError:
-                raise FileNotFoundError(str(current_dir.path / token))
-            if isinstance(current_dir, File):
-                raise NotADirectoryError(str(current_dir.path))
-            if not isinstance(current_dir, Directory):
-                # For now, ignoring other possible cases besides File and Directory (e.g. Symlink).
-                raise NotImplementedError()
-
-        return [str(child.path) for child in current_dir]
-
     def create_dir(self, path: str, make_parents: bool = False, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'Directory':
         if not path.startswith('/'):
             raise ValueError('Path must start with slash')
@@ -55,9 +39,27 @@ class FakeFilesystem:
         dir_ = self[path.parent]
         return dir_.create_file(path.name, data, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
 
+    def list_dir(self, path) -> typing.List[str]:
+        current_dir = self.root
+        tokens = Path(path).parts[1:]
+        for token in tokens:
+            try:
+                current_dir = current_dir[token]
+            except KeyError:
+                raise FileNotFoundError(str(current_dir.path / token))
+            if isinstance(current_dir, File):
+                raise NotADirectoryError(str(current_dir.path))
+            if not isinstance(current_dir, Directory):
+                # For now, ignoring other possible cases besides File and Directory (e.g. Symlink).
+                raise NotImplementedError()
+
+        return [str(child.path) for child in current_dir]
+
     def open(self, path: typing.Union[str, Path], encoding: typing.Optional[str] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
         path = Path(path)
-        file: File = self[path]  # warning: no check re: directories
+        file = self[path]  # warning: no check re: directories
+        if isinstance(file, Directory):
+            raise IsADirectoryError(str(file.path))
         return file.open(encoding=encoding)
 
     def __getitem__(self, path: typing.Union[str, Path]) -> typing.Union['Directory', 'File']:
