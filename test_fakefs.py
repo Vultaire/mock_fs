@@ -1,8 +1,6 @@
-import io
-import tempfile
+import unittest
 from io import StringIO, BytesIO
 from pathlib import Path
-import unittest
 
 import fakefs
 
@@ -19,10 +17,21 @@ class Test(unittest.TestCase):
             self.fs.listdir('/etc')
         self.assertEqual(cm.exception.args[0], '/etc')
 
+    def test_listdir(self):
+        self.fs.makedir('/opt')
+        self.fs.create_file('/opt/file1', 'data')
+        self.fs.create_file('/opt/file2', 'data')
+        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.listdir('/opt')))
+        # Ensure that Paths also work for listdir
+        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.listdir(Path('/opt'))))
+
     def test_makedir(self):
         d = self.fs.makedir('/etc')
         self.assertEqual(d.name, 'etc')
         self.assertEqual(d.path, Path('/etc'))
+        d2 = self.fs.makedir('/etc/init.d')
+        self.assertEqual(d2.name, 'init.d')
+        self.assertEqual(d2.path, Path('/etc/init.d'))
 
     def test_makedir_fails_if_already_exists(self):
         self.fs.makedir('/etc')
@@ -74,19 +83,20 @@ class Test(unittest.TestCase):
             self.assertEqual(infile.read(), 'foo')
 
     def test_create_and_read_large_file(self):
-        data = "#" * 1_000_000
+        # Create somewhat non-trivial data
+        # (32 distinct printable ASCII characters, repeated 2**15 times,
+        # 1 MiB of total data)
+        data = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345" * (2**15)
 
-        # Via blob
+        # Test via blob
         self.fs.create_file('/test', data)
-
         file = self.fs['/test']
         self.assertTrue(hasattr(file.data, 'name'))  # not present on str/bytes
         with self.fs.open('/test') as infile:
             self.assertEqual(infile.read(), data)
 
-        # Via file-like object
+        # Test via file-like object
         self.fs.create_file('/test2', StringIO(data))
-
         file = self.fs['/test2']
         self.assertTrue(hasattr(file.data, 'name'))  # not present on str/bytes
         with self.fs.open('/test2') as infile:
@@ -106,7 +116,24 @@ class Test(unittest.TestCase):
         with self.fs.open('/test2', encoding='utf-8') as infile:  # Explicit utf-8 read
             self.assertEqual(infile.read(), data)
 
-    def test_get_object(self):
+    def test_delete_file(self):
+        # self.fs.create_file('/test', "foo")
+        # del self.fs[Path('/test')]
+        # with self.assertRaises(FileNotFoundError):
+        #     self.fs['/test']
+
+        self.fs.create_file(Path('/test'), "foo")
+        del self.fs[Path('/test')]
+        with self.assertRaises(FileNotFoundError) as cm:
+            self.fs[Path('/test')]
+
+        # Deleting deleted files should fail as well
+        with self.assertRaises(FileNotFoundError) as cm:
+            del self.fs[Path('/test')]
+        self.assertEqual(cm.exception.args[0], '/test')
+
+
+    def test_getattr(self):
         self.fs.makedir('/etc/init.d', make_parents=True)
 
         # By path
@@ -119,16 +146,10 @@ class Test(unittest.TestCase):
         self.assertIsInstance(o, fakefs.Directory)
         self.assertEqual(o.path, Path('/etc/init.d'))
 
-    # def test_get_object_error_if_child_of_file(self):
-    #     # Get child of file - should fail
-
-
-
-    # Also do:
-    # * From BinaryIO
-    # * From TextIO
-
-    # And:
-    # * Large data to/from tempfile
-
-    # push/pull/makedirs/listdirs/remove   ->  remove is all that's left
+    def test_getattr_file_not_found(self):
+        # Arguably this could be a KeyError given the dictionary-style access.
+        # However, FileNotFoundError seems more appropriate for a filesystem, and it
+        # gives a closer semantic feeling, in my opinion.
+        with self.assertRaises(FileNotFoundError) as cm:
+            self.fs['/nonexistant_file']
+        self.assertEqual(cm.exception.args[0], '/nonexistant_file')

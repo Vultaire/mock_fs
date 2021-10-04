@@ -23,6 +23,8 @@ class FakeFilesystem:
                 # For now, ignoring the possibility of this being a symlink
                 # and am assuming we referred to something which is not equivalent to
                 # a directory.
+                # Also not sure how we want to handle listdir on a single file - do we
+                # raise an error, or return a single entry?
                 raise NotImplementedError()
 
         return [str(child.path) for child in current_dir]
@@ -34,7 +36,7 @@ class FakeFilesystem:
         tokens = Path(path).parts[1:]
         for token in tokens[:-1]:
             if token in current_dir:
-                current_dir = current_dir.get_child(token)
+                current_dir = current_dir[token]
             else:
                 if make_parents:
                     current_dir = current_dir.create_dir(token)
@@ -50,19 +52,18 @@ class FakeFilesystem:
             raise FileExistsError(str(current_dir.path / token))
         return current_dir
 
-    def create_file(self, path: str, data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO]) -> 'File':
-        path_obj = Path(path)
-        dir_ = self[path_obj.parent]
-        return dir_.create_file(path_obj.name, data)
+    def create_file(self, path: typing.Union[str, Path], data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO]) -> 'File':
+        path = Path(path)
+        dir_ = self[path.parent]
+        return dir_.create_file(path.name, data)
 
-    def open(self, path: str, encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
-        path_obj = Path(path)
-        file: File = self[path_obj]  # warning: no check re: directories
+    def open(self, path: typing.Union[str, Path], encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
+        path = Path(path)
+        file: File = self[path]  # warning: no check re: directories
         return file.open(encoding=encoding)
 
-    def __getitem__(self, path: typing.Union[str, Path]):
-        if isinstance(path, str):
-            path = Path(path)
+    def __getitem__(self, path: typing.Union[str, Path]) -> typing.Union['Directory', 'File']:
+        path = Path(path)
         tokens = path.parts[1:]
         current_object = self.root
         for token in tokens:
@@ -73,16 +74,19 @@ class FakeFilesystem:
                 raise FileNotFoundError(str(current_object.path / token))
         return current_object
 
+    def __delitem__(self, path: typing.Union[str, Path]) -> None:
+        parent_dir: Directory = self[path.parent]
+        del parent_dir[path.name]
 
 
 
 class Directory:
     def __init__(self, path: Path):
         self.path = path
-        self._children = {}
+        self._children: typing.Dict[str, typing.Union[Directory, File]] = {}
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.path.name
 
     def __contains__(self, child: str) -> bool:
@@ -91,8 +95,14 @@ class Directory:
     def __iter__(self) -> typing.Iterator[typing.Union['File', 'Directory']]:
         return (value for value in self._children.values())
 
-    def __getitem__(self, key) -> typing.Union['File', 'Directory']:
+    def __getitem__(self, key: str) -> typing.Union['File', 'Directory']:
         return self._children[key]
+
+    def __delitem__(self, key: str) -> None:
+        try:
+            del self._children[key]
+        except KeyError:
+            raise FileNotFoundError(str(self.path / key))
 
     def create_dir(self, name: str) -> 'Directory':
         self._children[name] = Directory(self.path / name)
@@ -108,20 +118,13 @@ class Directory:
 
 
 class File:
-    MAX_MEM_LENGTH = 100000
+    MAX_MEM_LENGTH = 102400
+    READ_BLOCK_SIZE = 102400
 
     def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO]):
         self.path = path
         if isinstance(data, (StringIO, BytesIO)):
-            # TO DO: Read in blocks; farm out to file if too large
-            data = self._read_from_filelike(data)
-            if len(data) > File.MAX_MEM_LENGTH:
-                tf = tempfile.NamedTemporaryFile(delete=False)
-                with tf:
-                    if isinstance(data, str):
-                        data = data.encode()
-                    tf.write(data)
-                data = tf
+            data = self._get_data_from_filelike(data)
         else:
             # Farm out to file if too large
             if len(data) > File.MAX_MEM_LENGTH:
@@ -131,10 +134,34 @@ class File:
                 data = tf
         self.data = data
 
-    def _read_from_filelike(self, data: typing.Union[StringIO, BytesIO]):
-        return data.read()
+    def _get_data_from_filelike(self, data):
+        blocks = []
+        total_read = 0
+        tf = None
+        while True:
+            block = data.read(self.READ_BLOCK_SIZE)
+            if len(block) == 0:
+                break
+            if isinstance(block, str):
+                block = block.encode()
 
-    def open(self, encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[StringIO, BytesIO]:
+            if tf is not None:
+                tf.write(block)
+            else:
+                blocks.append(block)
+                total_read += len(block)
+                if total_read > self.MAX_MEM_LENGTH:
+                    tf = tempfile.NamedTemporaryFile(delete=False)
+                    for queued_block in blocks:
+                        tf.write(queued_block)
+        if tf:
+            tf.close()
+            data = tf
+        else:
+            data = b''.join(blocks)
+        return data
+
+    def open(self, encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[typing.TextIO, typing.BinaryIO]:
         if hasattr(self.data, 'name'):  # tempfile case
             return open(self.data.name, encoding=encoding)
         if encoding is None:
@@ -145,7 +172,7 @@ class File:
             return StringIO(self.data if isinstance(self.data, str) else self.data.decode(encoding))
         # * If data is a tempfile: handle differently
 
-    def __del__(self, unlink=os.unlink):
+    def __del__(self, unlink=os.unlink) -> None:
         if hasattr(self.data, 'name'):
             # This is a file-like object returned from tempfile.NamedTemporaryFile; remove the tempfile.
             unlink(self.data.name)
