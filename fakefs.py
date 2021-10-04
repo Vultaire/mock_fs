@@ -27,7 +27,7 @@ class FakeFilesystem:
 
         return [str(child.path) for child in current_dir]
 
-    def create_dir(self, path: str, make_parents: bool = False) -> 'Directory':
+    def create_dir(self, path: str, make_parents: bool = False, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'Directory':
         if not path.startswith('/'):
             raise ValueError('Path must start with slash')
         current_dir = self.root
@@ -37,7 +37,7 @@ class FakeFilesystem:
                 current_dir = current_dir[token]
             else:
                 if make_parents:
-                    current_dir = current_dir.create_dir(token)
+                    current_dir = current_dir.create_dir(token, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
                 else:
                     raise FileNotFoundError(str(current_dir.path / token))
 
@@ -45,17 +45,17 @@ class FakeFilesystem:
         # already exists.
         token = tokens[-1]
         if token not in current_dir:
-            current_dir = current_dir.create_dir(token)
+            current_dir = current_dir.create_dir(token, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
         else:
             raise FileExistsError(str(current_dir.path / token))
         return current_dir
 
-    def create_file(self, path: typing.Union[str, Path], data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO]) -> 'File':
+    def create_file(self, path: typing.Union[str, Path], data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'File':
         path = Path(path)
         dir_ = self[path.parent]
-        return dir_.create_file(path.name, data)
+        return dir_.create_file(path.name, data, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
 
-    def open(self, path: typing.Union[str, Path], encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
+    def open(self, path: typing.Union[str, Path], encoding: typing.Optional[str] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
         path = Path(path)
         file: File = self[path]  # warning: no check re: directories
         return file.open(encoding=encoding)
@@ -79,9 +79,14 @@ class FakeFilesystem:
 
 
 class Directory:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None):
         self.path = path
         self._children: typing.Dict[str, typing.Union[Directory, File]] = {}
+        self.permissions = permissions
+        self.user = user
+        self.user_id = user_id
+        self.group = group
+        self.group_id = group_id
 
     @property
     def name(self) -> str:
@@ -102,12 +107,12 @@ class Directory:
         except KeyError:
             raise FileNotFoundError(str(self.path / key))
 
-    def create_dir(self, name: str) -> 'Directory':
-        self._children[name] = Directory(self.path / name)
+    def create_dir(self, name: str, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'Directory':
+        self._children[name] = Directory(self.path / name, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
         return self._children[name]
 
-    def create_file(self, name: str, data: typing.Union[bytes, str, StringIO, BytesIO]) -> 'File':
-        self._children[name] = File(self.path / name, data)
+    def create_file(self, name: str, data: typing.Union[bytes, str, StringIO, BytesIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'File':
+        self._children[name] = File(self.path / name, data, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
         return self._children[name]
 
 
@@ -115,7 +120,7 @@ class File:
     MAX_MEM_LENGTH = 102400
     READ_BLOCK_SIZE = 102400
 
-    def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO]):
+    def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None):
         self.path = path
         if isinstance(data, (StringIO, BytesIO)):
             data = self._get_data_from_filelike_object(data)
@@ -129,11 +134,16 @@ class File:
                     tf.write(data)
                 data = tf
         self.data = data
+        self.permissions = permissions
+        self.user = user
+        self.user_id = user_id
+        self.group = group
+        self.group_id = group_id
 
     def _get_data_from_filelike_object(self, data):
         blocks = []
         total_read = 0
-        temp: typing.Union[NamedTemporaryFile, None] = None
+        temp: typing.Optional[NamedTemporaryFile] = None
         while True:
             block = data.read(File.READ_BLOCK_SIZE)
             if len(block) == 0:
@@ -158,7 +168,7 @@ class File:
             data = b''.join(blocks)
         return data
 
-    def open(self, encoding: typing.Union[str, None] = 'utf-8') -> typing.Union[typing.TextIO, typing.BinaryIO]:
+    def open(self, encoding: typing.Optional[str] = 'utf-8') -> typing.Union[typing.TextIO, typing.BinaryIO]:
         if hasattr(self.data, 'name'):  # tempfile case
             return open(self.data.name, encoding=encoding)
         if encoding is None:

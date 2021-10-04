@@ -138,6 +138,47 @@ class Test(unittest.TestCase):
             del self.fs[Path('/test')]
         self.assertEqual(cm.exception.args[0], '/test')
 
+    def test_create_dir_with_permissions(self):
+        # Permissions are simply stored if provided.  No defaults are provided.
+        d = self.fs.create_dir('/dir1')
+        self.assertEqual(d.permissions, None)
+
+        d = self.fs.create_dir('/dir2', permissions=0o700)
+        self.assertEqual(d.permissions, 0o700)
+
+    def test_create_file_with_permissions(self):
+        # Permissions are simply stored if provided.  No defaults are provided.
+        d = self.fs.create_file('/file1', 'data')
+        self.assertEqual(d.permissions, None)
+
+        d = self.fs.create_file('/file2', 'data', permissions=0o754)
+        self.assertEqual(d.permissions, 0o754)
+
+    def test_create_dir_with_ownership(self):
+        d = self.fs.create_dir('/dir1')
+        self.assertIs(d.user, None)
+        self.assertIs(d.user_id, None)
+        self.assertIs(d.group, None)
+        self.assertIs(d.group_id, None)
+
+        d = self.fs.create_dir('/dir2', user='ubuntu', user_id=1000, group='www-data', group_id=33)
+        self.assertIs(d.user, 'ubuntu')
+        self.assertIs(d.user_id, 1000)
+        self.assertIs(d.group, 'www-data')
+        self.assertIs(d.group_id, 33)
+
+    def test_create_file_with_ownership(self):
+        f = self.fs.create_file('/file1', 'data')
+        self.assertIs(f.user, None)
+        self.assertIs(f.user_id, None)
+        self.assertIs(f.group, None)
+        self.assertIs(f.group_id, None)
+
+        f = self.fs.create_file('/file2', 'data', user='ubuntu', user_id=1000, group='www-data', group_id=33)
+        self.assertIs(f.user, 'ubuntu')
+        self.assertIs(f.user_id, 1000)
+        self.assertIs(f.group, 'www-data')
+        self.assertIs(f.group_id, 33)
 
     def test_getattr(self):
         self.fs.create_dir('/etc/init.d', make_parents=True)
