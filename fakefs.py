@@ -170,7 +170,6 @@ class File:
         else:
             # string mode; coerce bytes to string if needed.  encoding ignored if already a string.
             return StringIO(self.data if isinstance(self.data, str) else self.data.decode(encoding))
-        # * If data is a tempfile: handle differently
 
     def __del__(self, unlink=os.unlink) -> None:
         if hasattr(self.data, 'name'):
