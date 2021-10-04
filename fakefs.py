@@ -124,7 +124,7 @@ class File:
     def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO]):
         self.path = path
         if isinstance(data, (StringIO, BytesIO)):
-            data = self._get_data_from_filelike(data)
+            data = self._get_data_from_filelike_object(data)
         else:
             # Farm out to file if too large
             if len(data) > File.MAX_MEM_LENGTH:
@@ -134,7 +134,7 @@ class File:
                 data = tf
         self.data = data
 
-    def _get_data_from_filelike(self, data):
+    def _get_data_from_filelike_object(self, data):
         blocks = []
         total_read = 0
         tf = None
