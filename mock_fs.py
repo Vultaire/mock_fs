@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
-from tempfile import NamedTemporaryFile
+import typing
 from io import BytesIO, StringIO
 from pathlib import Path
-import typing
+from tempfile import NamedTemporaryFile
 
 
 class MockFilesystem:
@@ -24,7 +24,15 @@ class MockFilesystem:
     def __init__(self):
         self.root = Directory(Path('/'))
 
-    def create_dir(self, path: str, make_parents: bool = False, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'Directory':
+    def create_dir(
+            self,
+            path: str,
+            make_parents: bool = False,
+            permissions: typing.Optional[int] = None,
+            user_id: typing.Optional[int] = None,
+            user: typing.Optional[str] = None,
+            group_id: typing.Optional[int] = None,
+            group: typing.Optional[str] = None) -> 'Directory':
         if not path.startswith('/'):
             raise ValueError('Path must start with slash')
         current_dir = self.root
@@ -34,7 +42,13 @@ class MockFilesystem:
                 current_dir = current_dir[token]
             else:
                 if make_parents:
-                    current_dir = current_dir.create_dir(token, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
+                    current_dir = current_dir.create_dir(
+                        token,
+                        permissions=permissions,
+                        user_id=user_id,
+                        user=user,
+                        group_id=group_id,
+                        group=group)
                 else:
                     raise FileNotFoundError(str(current_dir.path / token))
 
@@ -42,15 +56,35 @@ class MockFilesystem:
         # already exists.
         token = tokens[-1]
         if token not in current_dir:
-            current_dir = current_dir.create_dir(token, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
+            current_dir = current_dir.create_dir(
+                token,
+                permissions=permissions,
+                user_id=user_id,
+                user=user,
+                group_id=group_id,
+                group=group)
         else:
             raise FileExistsError(str(current_dir.path / token))
         return current_dir
 
-    def create_file(self, path: typing.Union[str, Path], data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'File':
+    def create_file(self,
+                    path: typing.Union[str, Path],
+                    data: typing.Union[bytes, str, typing.BinaryIO, typing.TextIO],
+                    permissions: typing.Optional[int] = None,
+                    user_id: typing.Optional[int] = None,
+                    user: typing.Optional[str] = None,
+                    group_id: typing.Optional[int] = None,
+                    group: typing.Optional[str] = None) -> 'File':
         path = Path(path)
         dir_ = self[path.parent]
-        return dir_.create_file(path.name, data, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
+        return dir_.create_file(
+            path.name,
+            data,
+            permissions=permissions,
+            user_id=user_id,
+            user=user,
+            group_id=group_id,
+            group=group)
 
     def list_dir(self, path) -> typing.List[str]:
         current_dir = self.root
@@ -68,7 +102,10 @@ class MockFilesystem:
 
         return [str(child.path) for child in current_dir]
 
-    def open(self, path: typing.Union[str, Path], encoding: typing.Optional[str] = 'utf-8') -> typing.Union[typing.BinaryIO, typing.TextIO]:
+    def open(self,
+             path: typing.Union[str, Path],
+             encoding: typing.Optional[str] = 'utf-8'
+             ) -> typing.Union[typing.BinaryIO, typing.TextIO]:
         path = Path(path)
         file = self[path]  # warning: no check re: directories
         if isinstance(file, Directory):
@@ -93,7 +130,14 @@ class MockFilesystem:
 
 
 class Directory:
-    def __init__(self, path: Path, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None):
+    def __init__(
+            self,
+            path: Path,
+            permissions: typing.Optional[int] = None,
+            user_id: typing.Optional[int] = None,
+            user: typing.Optional[str] = None,
+            group_id: typing.Optional[int] = None,
+            group: typing.Optional[str] = None):
         self.path = path
         self._children: typing.Dict[str, typing.Union[Directory, File]] = {}
         self.permissions = permissions
@@ -121,12 +165,39 @@ class Directory:
         except KeyError:
             raise FileNotFoundError(str(self.path / key))
 
-    def create_dir(self, name: str, permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'Directory':
-        self._children[name] = Directory(self.path / name, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
+    def create_dir(
+            self,
+            name: str,
+            permissions: typing.Optional[int] = None,
+            user_id: typing.Optional[int] = None,
+            user: typing.Optional[str] = None,
+            group_id: typing.Optional[int] = None,
+            group: typing.Optional[str] = None) -> 'Directory':
+        self._children[name] = Directory(
+            self.path / name,
+            permissions=permissions,
+            user_id=user_id,
+            user=user,
+            group_id=group_id,
+            group=group)
         return self._children[name]
 
-    def create_file(self, name: str, data: typing.Union[bytes, str, StringIO, BytesIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None) -> 'File':
-        self._children[name] = File(self.path / name, data, permissions=permissions, user_id=user_id, user=user, group_id=group_id, group=group)
+    def create_file(self,
+                    name: str,
+                    data: typing.Union[bytes, str, StringIO, BytesIO],
+                    permissions: typing.Optional[int] = None,
+                    user_id: typing.Optional[int] = None,
+                    user: typing.Optional[str] = None,
+                    group_id: typing.Optional[int] = None,
+                    group: typing.Optional[str] = None) -> 'File':
+        self._children[name] = File(
+            self.path / name,
+            data,
+            permissions=permissions,
+            user_id=user_id,
+            user=user,
+            group_id=group_id,
+            group=group)
         return self._children[name]
 
 
@@ -134,7 +205,14 @@ class File:
     MAX_MEM_LENGTH = 102400
     READ_BLOCK_SIZE = 102400
 
-    def __init__(self, path: Path, data: typing.Union[str, bytes, StringIO, BytesIO], permissions: typing.Optional[int] = None, user_id: typing.Optional[int] = None, user: typing.Optional[str] = None, group_id: typing.Optional[int] = None, group: typing.Optional[str] = None):
+    def __init__(self,
+                 path: Path,
+                 data: typing.Union[str, bytes, StringIO, BytesIO],
+                 permissions: typing.Optional[int] = None,
+                 user_id: typing.Optional[int] = None,
+                 user: typing.Optional[str] = None,
+                 group_id: typing.Optional[int] = None,
+                 group: typing.Optional[str] = None):
         self.path = path
         if isinstance(data, (StringIO, BytesIO)):
             data = self._get_data_from_filelike_object(data)
@@ -182,7 +260,9 @@ class File:
             data = b''.join(blocks)
         return data
 
-    def open(self, encoding: typing.Optional[str] = 'utf-8') -> typing.Union[typing.TextIO, typing.BinaryIO]:
+    def open(self,
+             encoding: typing.Optional[str] = 'utf-8'
+             ) -> typing.Union[typing.TextIO, typing.BinaryIO]:
         if hasattr(self.data, 'name'):  # tempfile case
             return open(self.data.name, encoding=encoding)
         if encoding is None:
@@ -190,7 +270,9 @@ class File:
             return BytesIO(self.data if isinstance(self.data, bytes) else self.data.encode())
         else:
             # string mode; coerce bytes to string if needed.  encoding ignored if already a string.
-            return StringIO(self.data if isinstance(self.data, str) else self.data.decode(encoding))
+            return StringIO(
+                self.data if isinstance(self.data, str)
+                else self.data.decode(encoding))
 
     def __del__(self, unlink=os.unlink) -> None:
         if hasattr(self.data, 'name'):

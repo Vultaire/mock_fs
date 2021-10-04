@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import unittest
-from io import StringIO, BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 import mock_fs
@@ -189,7 +189,9 @@ class Tests(unittest.TestCase):
         self.assertIs(f.group, None)
         self.assertIs(f.group_id, None)
 
-        f = self.fs.create_file('/file2', 'data', user='ubuntu', user_id=1000, group='www-data', group_id=33)
+        f = self.fs.create_file('/file2', 'data',
+                                user='ubuntu', user_id=1000,
+                                group='www-data', group_id=33)
         self.assertIs(f.user, 'ubuntu')
         self.assertIs(f.user_id, 1000)
         self.assertIs(f.group, 'www-data')
