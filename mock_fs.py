@@ -1,4 +1,3 @@
-import io
 import os
 from tempfile import NamedTemporaryFile
 from io import BytesIO, StringIO
@@ -6,7 +5,7 @@ from pathlib import Path
 import typing
 
 
-class FakeFilesystem:
+class MockFilesystem:
 
     def __init__(self):
         self.root = Directory(Path('/'))
@@ -77,7 +76,6 @@ class FakeFilesystem:
     def __delitem__(self, path: typing.Union[str, Path]) -> None:
         parent_dir: Directory = self[path.parent]
         del parent_dir[path.name]
-
 
 
 class Directory:

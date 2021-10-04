@@ -2,12 +2,12 @@ import unittest
 from io import StringIO, BytesIO
 from pathlib import Path
 
-import fakefs
+import mock_fs
 
 
 class Tests(unittest.TestCase):
     def setUp(self):
-        self.fs = fakefs.FakeFilesystem()
+        self.fs = mock_fs.MockFilesystem()
 
     def test_listdir_root_on_empty_os(self):
         self.assertEqual(self.fs.list_dir('/'), [])
@@ -186,12 +186,12 @@ class Tests(unittest.TestCase):
 
         # By path
         o = self.fs[Path('/etc/init.d')]
-        self.assertIsInstance(o, fakefs.Directory)
+        self.assertIsInstance(o, mock_fs.Directory)
         self.assertEqual(o.path, Path('/etc/init.d'))
 
         # By str
         o = self.fs['/etc/init.d']
-        self.assertIsInstance(o, fakefs.Directory)
+        self.assertIsInstance(o, mock_fs.Directory)
         self.assertEqual(o.path, Path('/etc/init.d'))
 
     def test_getattr_file_not_found(self):
