@@ -5,7 +5,7 @@ from pathlib import Path
 import fakefs
 
 
-class Test(unittest.TestCase):
+class Tests(unittest.TestCase):
     def setUp(self):
         self.fs = fakefs.FakeFilesystem()
 
