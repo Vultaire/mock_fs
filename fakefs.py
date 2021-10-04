@@ -1,6 +1,6 @@
 import io
 import os
-import tempfile
+from tempfile import NamedTemporaryFile
 from io import BytesIO, StringIO
 from pathlib import Path
 import typing
@@ -11,7 +11,7 @@ class FakeFilesystem:
     def __init__(self):
         self.root = Directory(Path('/'))
 
-    def listdir(self, path) -> typing.List[str]:
+    def list_dir(self, path) -> typing.List[str]:
         current_dir = self.root
         tokens = Path(path).parts[1:]
         for token in tokens:
@@ -29,7 +29,7 @@ class FakeFilesystem:
 
         return [str(child.path) for child in current_dir]
 
-    def makedir(self, path: str, make_parents: bool = False) -> 'Directory':
+    def create_dir(self, path: str, make_parents: bool = False) -> 'Directory':
         if not path.startswith('/'):
             raise ValueError('Path must start with slash')
         current_dir = self.root
@@ -109,10 +109,6 @@ class Directory:
         return self._children[name]
 
     def create_file(self, name: str, data: typing.Union[bytes, str, StringIO, BytesIO]) -> 'File':
-        if isinstance(data, (StringIO, BytesIO)):
-            pass
-        if isinstance(data, str):
-            data = data.encode()  # Implicit encode to utf-8 bytes
         self._children[name] = File(self.path / name, data)
         return self._children[name]
 
@@ -128,8 +124,10 @@ class File:
         else:
             # Farm out to file if too large
             if len(data) > File.MAX_MEM_LENGTH:
-                tf = tempfile.NamedTemporaryFile(delete=False)
+                tf = NamedTemporaryFile(delete=False)
                 with tf:
+                    if isinstance(data, str):
+                        data = data.encode()
                     tf.write(data)
                 data = tf
         self.data = data
@@ -137,26 +135,27 @@ class File:
     def _get_data_from_filelike_object(self, data):
         blocks = []
         total_read = 0
-        tf = None
+        temp: typing.Union[NamedTemporaryFile, None] = None
         while True:
-            block = data.read(self.READ_BLOCK_SIZE)
+            block = data.read(File.READ_BLOCK_SIZE)
             if len(block) == 0:
                 break
             if isinstance(block, str):
                 block = block.encode()
 
-            if tf is not None:
-                tf.write(block)
+            if temp is not None:
+                temp.write(block)
             else:
                 blocks.append(block)
                 total_read += len(block)
-                if total_read > self.MAX_MEM_LENGTH:
-                    tf = tempfile.NamedTemporaryFile(delete=False)
+                if total_read > File.MAX_MEM_LENGTH:
+                    temp = NamedTemporaryFile(delete=False)
                     for queued_block in blocks:
-                        tf.write(queued_block)
-        if tf:
-            tf.close()
-            data = tf
+                        temp.write(queued_block)
+        if temp:
+            # Tempfile not automatically closed; close it
+            temp.close()
+            data = temp
         else:
             data = b''.join(blocks)
         return data
@@ -173,5 +172,5 @@ class File:
 
     def __del__(self, unlink=os.unlink) -> None:
         if hasattr(self.data, 'name'):
-            # This is a file-like object returned from tempfile.NamedTemporaryFile; remove the tempfile.
+            # This is a file-like object returned from NamedTemporaryFile; remove the tempfile.
             unlink(self.data.name)

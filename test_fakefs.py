@@ -10,53 +10,53 @@ class Test(unittest.TestCase):
         self.fs = fakefs.FakeFilesystem()
 
     def test_listdir_root_on_empty_os(self):
-        self.assertEqual(self.fs.listdir('/'), [])
+        self.assertEqual(self.fs.list_dir('/'), [])
 
     def test_listdir_on_nonexistant_dir(self):
         with self.assertRaises(FileNotFoundError) as cm:
-            self.fs.listdir('/etc')
+            self.fs.list_dir('/etc')
         self.assertEqual(cm.exception.args[0], '/etc')
 
     def test_listdir(self):
-        self.fs.makedir('/opt')
+        self.fs.create_dir('/opt')
         self.fs.create_file('/opt/file1', 'data')
         self.fs.create_file('/opt/file2', 'data')
-        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.listdir('/opt')))
+        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.list_dir('/opt')))
         # Ensure that Paths also work for listdir
-        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.listdir(Path('/opt'))))
+        self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.list_dir(Path('/opt'))))
 
     def test_makedir(self):
-        d = self.fs.makedir('/etc')
+        d = self.fs.create_dir('/etc')
         self.assertEqual(d.name, 'etc')
         self.assertEqual(d.path, Path('/etc'))
-        d2 = self.fs.makedir('/etc/init.d')
+        d2 = self.fs.create_dir('/etc/init.d')
         self.assertEqual(d2.name, 'init.d')
         self.assertEqual(d2.path, Path('/etc/init.d'))
 
     def test_makedir_fails_if_already_exists(self):
-        self.fs.makedir('/etc')
+        self.fs.create_dir('/etc')
         with self.assertRaises(FileExistsError) as cm:
-            self.fs.makedir('/etc')
+            self.fs.create_dir('/etc')
         self.assertEqual(cm.exception.args[0], '/etc')
 
     def test_makedir_fails_if_parent_dir_doesnt_exist(self):
         with self.assertRaises(FileNotFoundError) as cm:
-            self.fs.makedir('/etc/init.d')
+            self.fs.create_dir('/etc/init.d')
         self.assertEqual(cm.exception.args[0], '/etc')
 
     def test_make_and_list_directory(self):
-        self.fs.makedir('/etc')
-        self.fs.makedir('/var')
-        self.assertEqual(set(self.fs.listdir('/')), {'/etc', '/var'})
+        self.fs.create_dir('/etc')
+        self.fs.create_dir('/var')
+        self.assertEqual(set(self.fs.list_dir('/')), {'/etc', '/var'})
 
     def test_make_directory_recursively(self):
-        self.fs.makedir('/etc/init.d', make_parents=True)
-        self.assertEqual(self.fs.listdir('/'), ['/etc'])
-        self.assertEqual(self.fs.listdir('/etc'), ['/etc/init.d'])
+        self.fs.create_dir('/etc/init.d', make_parents=True)
+        self.assertEqual(self.fs.list_dir('/'), ['/etc'])
+        self.assertEqual(self.fs.list_dir('/etc'), ['/etc/init.d'])
 
     def test_makedir_path_must_start_with_slash(self):
         with self.assertRaises(ValueError) as cm:
-            self.fs.makedir("noslash")
+            self.fs.create_dir("noslash")
         self.assertEqual(cm.exception.args[0], "Path must start with slash")
 
     def test_create_file_from_str(self):
@@ -134,7 +134,7 @@ class Test(unittest.TestCase):
 
 
     def test_getattr(self):
-        self.fs.makedir('/etc/init.d', make_parents=True)
+        self.fs.create_dir('/etc/init.d', make_parents=True)
 
         # By path
         o = self.fs[Path('/etc/init.d')]
