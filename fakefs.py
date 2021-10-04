@@ -19,12 +19,10 @@ class FakeFilesystem:
                 current_dir = current_dir[token]
             except KeyError:
                 raise FileNotFoundError(str(current_dir.path / token))
+            if isinstance(current_dir, File):
+                raise NotADirectoryError(str(current_dir.path))
             if not isinstance(current_dir, Directory):
-                # For now, ignoring the possibility of this being a symlink
-                # and am assuming we referred to something which is not equivalent to
-                # a directory.
-                # Also not sure how we want to handle listdir on a single file - do we
-                # raise an error, or return a single entry?
+                # For now, ignoring other possible cases besides File and Directory (e.g. Symlink).
                 raise NotImplementedError()
 
         return [str(child.path) for child in current_dir]

@@ -25,6 +25,12 @@ class Test(unittest.TestCase):
         # Ensure that Paths also work for listdir
         self.assertEqual({'/opt/file1', '/opt/file2'}, set(self.fs.list_dir(Path('/opt'))))
 
+    def test_listdir_on_file(self):
+        self.fs.create_file('/file', 'data')
+        with self.assertRaises(NotADirectoryError) as cm:
+            self.fs.list_dir('/file')
+        self.assertEqual(cm.exception.args[0], '/file')
+
     def test_makedir(self):
         d = self.fs.create_dir('/etc')
         self.assertEqual(d.name, 'etc')
